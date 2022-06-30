@@ -3,7 +3,7 @@ pragma solidity >=0.6.12;
 pragma experimental ABIEncoderV2;
 
 import "./SudokuChallenge.sol";
-import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import "@openzeppelin/token/ERC20/ERC20.sol";
 
 /** Rewards users for solving Sudoku challenges
  *
@@ -17,45 +17,36 @@ contract SudokuExchange {
 
     /** All the data necessary for solving a Sudoku challenge and claiming the reward */
     struct ChallengeReward {
-        SudokuChallenge challenge;
-        uint256 reward;
-        ERC20 token;
-        bool solved;
+        address challenge; // SudokuChallenge
+        uint8 solved; //using a uint8 to represent a bool
+        address token; // ERC20 token
+        uint256 reward; // shouldn't pack this because token amounts are too large
     }
 
     // stores the Sudoku challenges and the data necessary to claim the reward
     // for a successful solution
     // key: SudokuChallenge
     // value: ChallengeReward
-    mapping(address => ChallengeReward) rewardChallenges;
+    mapping(address => ChallengeReward) public rewardChallenges;
 
-    constructor() public {
-    }
-
-    //
     function createReward(ChallengeReward memory challengeReward) public {
         // first transfer in the user's token approved in a previous transaction
-        challengeReward.token.transferFrom(msg.sender, address(this), challengeReward.reward);
+        ERC20(challengeReward.token).transferFrom(msg.sender, address(this), challengeReward.reward);
 
         // now store the reward so future callers of SudokuExchange.claimReward can solve the challenge
         // and claim the reward
         rewardChallenges[address(challengeReward.challenge)] = challengeReward;
-
     }
 
     // claim a previously created reward by solving the Sudoku challenge
-    function claimReward(SudokuChallenge challenge, uint8[81] calldata solution) public {
-        // does this challenge even have a reward for it?
-        require(address(rewardChallenges[address(challenge)].token) != address(0x0), "Sudoku challenge does not exist at this address");
+    function claimReward(address challenge, uint8[81] calldata solution) public {
+        require(rewardChallenges[challenge].reward > 0, "No reward for this challenge");
+        require(rewardChallenges[challenge].solved == 0, "this challenge has already been solved");
+        require(SudokuChallenge(challenge).validate(solution), "The solution is not correct");
 
-        // now try to solve it
-        bool isCorrect = challenge.validate(solution);
-
-        require(isCorrect, "the solution is not correct");
-
-        // they solved the Sudoku challenge! pay them and then mark the challenge as solved
-        ChallengeReward memory challengeReward = rewardChallenges[address(challenge)];
-        challengeReward.token.transfer(address(this), challengeReward.reward);
-        challengeReward.solved = true;
+        rewardChallenges[challenge].solved = 1;
+        uint256 reward = rewardChallenges[challenge].reward;
+        ERC20 rewardToken = ERC20(rewardChallenges[challenge].token);
+        rewardToken.transfer(msg.sender, reward);
     }
 }

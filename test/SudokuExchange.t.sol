@@ -3,10 +3,37 @@ pragma solidity ^0.8.13;
 
 import "forge-std/Test.sol";
 import "../src/SudokuChallenge.sol";
+import "../src/SudokuExchange.sol";
+import "@openzeppelin/token/ERC20/ERC20.sol";
 
-contract SudokuChallengeTest is Test {
+contract Token is ERC20 {
+  constructor(string memory name, string memory symbol)ERC20(name, symbol){}
+  function mint(address to) public {
+    _mint(to, 100*10**18);
+  }
+}
+
+interface ISudokuExchange {
+  struct ChallengeReward {
+    address challenge;
+    uint8 solved;
+    address token;
+    uint256 reward;
+  }
+  function createReward(ChallengeReward memory challengeReward) external;
+  mapping(address => ChallengeReward) public rewardChallenges;
+}
+
+contract SudokuExchangeTest is Test {
 
     SudokuChallenge public sc;
+    SudokuExchange public ex;
+    Token public token;
+
+    address payable[] internal users;
+    address internal alice;
+    address internal bob;
+
     uint8[81] public challenge = 
     [
       3, 0, 6, 5, 0, 8, 4, 0, 0,
@@ -35,93 +62,29 @@ contract SudokuChallengeTest is Test {
 
     function setUp() public {
       sc = new SudokuChallenge(challenge);
+      ex = new SudokuExchange();
+      alice = users[0];
+      bob = users[1];
+      token = new Token("TOKEN", "TKN");
+      token.mint(alice);
     }
 
-    function testvalidateRow() public {
-        uint8[9] memory input;
-        for(uint8 i = 0; i < 9; i++) {
-            input[i] = solution[i];
-        }
-        assertTrue(sc.validateSet(input));
+    function testCreateReward() public {
+      uint256 reward = 100*10**18;
+      vm.prank(alice);
+      ex.createReward(SudokuExchange.ChallengeReward(address(sc), 0, address(token), reward));
+      // test that the values submitted at the index are correct
     }
 
-    function testFailvalidateRow() public {
-        uint8[9] memory input;
-        for(uint8 i = 0; i < 9; i++) {
-            input[i] = challenge[i];
-        }
-        assertTrue(sc.validateSet(input));
+    function testClaimReward() public {
+      // test that you can only claim if you submit the correct solution
     }
 
-    function testValidateCol() public {
-        uint8[9] memory input;
-        for(uint8 i = 0; i < 9; i++) {
-            input[i] = solution[i*9];
-        }
-        assertTrue(sc.validateSet(input));
+    function testEdgeCases() public {
+      // test that you can't claim if you haven't submitted the correct solution
+      // test that you can't claim if you've already claimed
+      // test that the reward is transfered to the correct address and that the correct amount is transferred
+      // test that you cannot drain the contract via re-entrancy
     }
 
-    function testFailValidateCol() public {
-        uint8[9] memory input;
-        for(uint8 i = 0; i < 9; i++) {
-            input[i] = challenge[i*9];
-        }
-        assertTrue(sc.validateSet(input));
-    }
-
-    function testValidateBlock() public {
-        uint8[9] memory input;
-        uint count;
-        for(uint8 i = 0; i < 3; i++) {
-            for(uint8 j = 0; j < 3; j++) {
-                input[count] = solution[i*9+j];
-                count++;
-            }
-        }
-        assertTrue(sc.validateSet(input));
-    }
-
-    function testFailValidateBlock() public {
-        uint8[9] memory input;
-        uint count;
-        for(uint8 i = 0; i < 3; i++) {
-            for(uint8 j = 0; j < 3; j++) {
-                input[count] = solution[i*9+j];
-                count++;
-            }
-        }
-        assertFalse(sc.validateSet(input));
-    }
-
-    function testValidateRows() public {
-      assertTrue(sc.validateRows(solution));
-    }
-
-    function testFailValidateRows() public {
-      assertTrue(sc.validateRows(challenge));
-    }
-
-    function testValidateColumns() public {
-      assertTrue(sc.validateColumns(solution));
-    }
-
-    function testFailValidateColumns() public {
-      assertTrue(sc.validateColumns(challenge));
-    }
-
-    function testSubgrids() public {
-      assertTrue(sc.validateSubgrids(solution));
-    }
-
-    function testFailSubgrids() public {
-      assertTrue(sc.validateSubgrids(challenge));
-    }
-
-    function testSolution() public {
-        assertTrue(sc.validate(solution));
-    }
-
-    function testFailSolution() public {
-        sc.validate(challenge);
-    }
 }
